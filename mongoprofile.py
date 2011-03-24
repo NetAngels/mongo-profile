@@ -12,6 +12,10 @@ _re_query_record = re.compile(
     ur'query (?P<db>[^.]+)\.(?P<collection>[^ ]+) (?P<options1>.*)\n'
     ur'query: (?P<query>{.*}) (?P<options2>.*)'
 )
+_re_marker_record = re.compile(
+    ur'query (?P<db>[^.]+)\.phony_mongoprofile_marker.*\n'
+    ur'query: { \$query: { text: "(?P<text>.*)" } }'
+)
 _re_insert_record = re.compile(
     ur'insert (?P<db>[^.]+)\.(?P<collection>[^ ]+)'
 )
@@ -32,38 +36,52 @@ class mongoprofile(object):
         if self._level == pymongo.ALL:
             self._records += 2
         self.db.set_profiling_level(pymongo.ALL)
-        self.log = []
-        return self.log
+        self.profile = Profile(self.db)
+        return self.profile
 
     def __exit__(self, type, value, traceback):
         stats = self.db.system.profile.find().skip(self._records)
         for record in stats:
-            self.log.append(parse_record(record))
-        self.log += list(stats)
+            self.profile.append(parse_record(record))
+        self.profile += list(stats)
         self.db.set_profiling_level(self._level)
 
+class Profile(list):
+
+    def __init__(self, db):
+        list.__init__(self)
+        self.db = db
+
+    def mark(self, text):
+        """ set the marker """
+        list(self.db.phony_mongoprofile_marker.find({'text': text}))
+        return
 
 class dummymongoprofile(object):
     def __init__(self, db):
         pass
     def __enter__(self):
-        return []
+        return DummyProfile()
     def __exit__(self, type, value, traceback):
         pass
 
+class DummyProfile(list):
+    def mark(self, text):
+        pass
 
 def parse_record(record_source):
-    record_map = {
-        _re_command_record: CommandRecord,
-        _re_query_record: QueryRecord,
-        _re_insert_record: InsertRecord,
-        _re_update_record: UpdateRecord,
-        _re_remove_record: RemoveRecord,
-    }
+    record_map = [
+        (_re_marker_record, MarkerRecord),
+        (_re_command_record, CommandRecord),
+        (_re_query_record, QueryRecord),
+        (_re_insert_record, InsertRecord),
+        (_re_update_record, UpdateRecord),
+        (_re_remove_record, RemoveRecord),
+    ]
     info = record_source['info']
     # find record by info
     record = None
-    for regex, RecordClass in record_map.iteritems():
+    for regex, RecordClass in record_map:
         match = regex.search(info)
         if match:
             results = match.groupdict()
@@ -121,6 +139,11 @@ class CommandRecord(BaseRecord):
 class QueryRecord(BaseRecord):
     def __str__(self):
         return str('%(db)s> db.%(collection)s.find(%(query)s)' % self)
+
+class MarkerRecord(BaseRecord):
+    def __str__(self):
+        return str('==== %(text)s ====' % self)
+
 
 class InsertRecord(BaseRecord):
     def __str__(self):
