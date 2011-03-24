@@ -11,8 +11,16 @@ class ParserTest(TestCase):
     insert_cmd = "insert test.people"
     update_cmd = "update test.people  query: { name: \"John\" } nscanned:1 fastmod "
     remove_cmd = "remove test.people  query: { name: \"Mary\" }"
-    query_cmd = "query test.people reslen:86 nscanned:1  \nquery: { age: { $gt: 20.0 } }  nreturned:1 bytes:70"
-
+    query_commands = [
+        (
+            'query test.people reslen:86 nscanned:1  \nquery: { age: { $gt: 20.0 } }  nreturned:1 bytes:70',
+            'test> db.people.find({ age: { $gt: 20.0 } })'
+        ),
+        (
+            'query test.people ntoreturn:1 reslen:199 nscanned:4  \nquery: { $query: { age: { $gt: 20.0 } }, $orderby: { age: -1 } }  nreturned:1 bytes:70',
+            'test> db.people.find({ $query: { age: { $gt: 20.0 } }, $orderby: { age: -1 } })'
+        ),
+    ]
     def testCommandCmd(self):
         record_source = dict(info=self.command_cmd)
         record = parse_record(record_source)
@@ -39,9 +47,10 @@ class ParserTest(TestCase):
         self.assertEquals(str(record), 'test> db.people.remove({ name: "Mary" })')
 
     def testQueryCmd(self):
-        record_source = dict(info=self.query_cmd)
-        record = parse_record(record_source)
-        self.assertEquals(str(record), 'test> db.people.find({ age: { $gt: 20.0 } })')
+        for cmd, result in self.query_commands:
+            record_source = dict(info=cmd)
+            record = parse_record(record_source)
+            self.assertEquals(str(record), result)
 
 
 from pymongo import Connection

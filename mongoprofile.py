@@ -9,8 +9,8 @@ _re_command_record = re.compile(
     ur'query (?P<db>[^.]+)\.\$cmd ntoreturn:(?P<ntoreturn>\d+) '
     ur'command: (?P<command>{.*}) (?P<options>.*)')
 _re_query_record = re.compile(
-    ur'query (?P<db>[^.]+)\.(?P<collection>[^ ]+) reslen:(?P<reslen>\d+) nscanned:(?P<nscanned>\d+)\s*\n'
-    ur'query: (?P<query>{.*}) (?P<options>.*)'
+    ur'query (?P<db>[^.]+)\.(?P<collection>[^ ]+) (?P<options1>.*)\n'
+    ur'query: (?P<query>{.*}) (?P<options2>.*)'
 )
 _re_insert_record = re.compile(
     ur'insert (?P<db>[^.]+)\.(?P<collection>[^ ]+)'
@@ -73,9 +73,10 @@ def parse_record(record_source):
     if not record:
         record = UnknownRecord(record_source)
     # parse record options, if any (see regexps)
-    if 'options' in record:
-        options = record.pop('options')
-        record.update(_parse_record_options(options))
+    for k in record.keys():
+        if k.startswith('options'):
+            options = record.pop(k)
+            record.update(_parse_record_options(options))
     # convert ints to integer
     for k, v in record.iteritems():
         if isinstance(record[k], basestring):
