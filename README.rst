@@ -89,3 +89,17 @@ Will lead to the output::
     '==== search ===='
     test> db.people.find({ $query: { age: { $gt: 20.0 } } })
     test> db.runCommand({ count: "people", query: { age: { $gt: 20.0 } }, fields: null })
+
+Miscellaneous remarks
+---------------------
+
+Collection `db.system.profile` is capped with a relatively small capacity. If
+you want to profile large amount of records at once, it is worth to extend its
+size. The following set of commands creates capped collection of 100Mb::
+
+    > db.setProfilingLevel(0)
+    > db.system.profile.drop()
+    > db.createCollection("system.profile", {capped:true, size:100*1e6})
+
+Command ``db.system.profile.stats()`` get the information about the current
+state of collection.
