@@ -52,10 +52,20 @@ class mongoprofile(object):
         else:
             skip = 0
         stats = self.db.system.profile.find(filt).skip(skip)
+        prev_ts = None
         for record in stats:
             r = parse_record(record)
+            self._setup_ts_diff(r, prev_ts)
+            if r.get('ts'):
+                prev_ts = r['ts']
             self.profile.append(r)
         self.db.set_profiling_level(self._level)
+
+    def _setup_ts_diff(self, record, prev_ts):
+        new_ts = record.get('ts')
+        if prev_ts and new_ts:
+            diff = new_ts - prev_ts
+            record['ts_diff'] = diff.seconds + float(diff.microseconds / 1e6)
 
 class Profile(list):
 
@@ -128,7 +138,7 @@ def _parse_record_options(options):
 
 
 class BaseRecord(dict):
-
+    record_type = None
     def short_info(self):
         """ get short info about query results """
         # remove useless data
@@ -144,29 +154,35 @@ class BaseRecord(dict):
         return '  '.join(ret)
 
 class CommandRecord(BaseRecord):
+    record_type = 'command'
     def __str__(self):
         return str('%(db)s> db.runCommand(%(command)s)' % self)
 
 class QueryRecord(BaseRecord):
+    record_type = 'query'
     def __str__(self):
         return str('%(db)s> db.%(collection)s.find(%(query)s)' % self)
 
 class MarkerRecord(BaseRecord):
+    record_type = 'marker'
     def __str__(self):
         return str('==== %(text)s ====' % self)
 
-
 class InsertRecord(BaseRecord):
+    record_type = 'insert'
     def __str__(self):
         return str('%(db)s> db.%(collection)s.insert({...})' % self)
 
 class UpdateRecord(BaseRecord):
+    record_type = 'update'
     def __str__(self):
         return str('%(db)s> db.%(collection)s.update(%(query)s, {...})' % self)
 
 class RemoveRecord(BaseRecord):
+    record_type = 'remove'
     def __str__(self):
         return str('%(db)s> db.%(collection)s.remove(%(query)s)' % self)
 
 class UnknownRecord(BaseRecord):
+    record_type = 'unknown'
     pass
