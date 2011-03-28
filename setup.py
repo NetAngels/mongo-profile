@@ -8,7 +8,7 @@ reload(sys).setdefaultencoding("UTF-8")
 
 setup(
     name='mongo-profile',
-    version='0.1',
+    version='0.3',
     author='NetAngels',
     author_email='info@netangels.ru',
     py_modules=['mongoprofile',],
