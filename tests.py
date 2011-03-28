@@ -22,6 +22,9 @@ class ParserTest(TestCase):
             'test> db.people.find({ $query: { age: { $gt: 20.0 } }, $orderby: { age: -1 } })'
         ),
     ]
+
+    getmore_cmd = 'getmore test.people cid:5236062738003527185 getMore: { $query: { age: { $gt: 20.0 } } }  bytes:128950 nreturned:1750'
+
     def testCommandCmd(self):
         record_source = dict(info=self.command_cmd)
         record = parse_record(record_source)
@@ -57,6 +60,11 @@ class ParserTest(TestCase):
             record_source = dict(info=cmd)
             record = parse_record(record_source)
             self.assertEquals(str(record), result)
+
+    def testGetMoreCmd(self):
+        record_source = dict(info=self.getmore_cmd)
+        record = parse_record(record_source)
+        self.assertEquals(str(record), 'test> db.people.find({ $query: { age: { $gt: 20.0 } } }) *getmore')
 
 
 from pymongo import Connection

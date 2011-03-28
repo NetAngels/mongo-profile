@@ -13,6 +13,9 @@ _re_query_record = re.compile(
     ur'query (?P<db>[^.]+)\.(?P<collection>[^ ]+) (?P<options1>.*)\n'
     ur'query: (?P<query>{.*}) (?P<options2>.*)'
 )
+_re_getmore_record = re.compile(
+    ur'getmore (?P<db>[^.]+)\.(?P<collection>[^ ]+) '
+    ur'(?P<options1>.*?) getMore: (?P<query>{.*})(?P<options2>.*)')
 _re_marker_record = re.compile(
     ur'query (?P<db>[^.]+)\.phony_mongoprofile_marker.*\n'
     ur'query: { \$query: { text: "(?P<text>.*)" } }'
@@ -98,6 +101,7 @@ def parse_record(record_source):
         (_re_insert_record, InsertRecord),
         (_re_update_record, UpdateRecord),
         (_re_remove_record, RemoveRecord),
+        (_re_getmore_record, GetMoreRecord),
     ]
     info = record_source['info']
     # find record by info
@@ -182,6 +186,11 @@ class RemoveRecord(BaseRecord):
     record_type = 'remove'
     def __str__(self):
         return str('%(db)s> db.%(collection)s.remove(%(query)s)' % self)
+
+class GetMoreRecord(BaseRecord):
+    record_type = 'get_more'
+    def __str__(self):
+        return str('%(db)s> db.%(collection)s.find(%(query)s) *getmore' % self)
 
 class UnknownRecord(BaseRecord):
     record_type = 'unknown'
