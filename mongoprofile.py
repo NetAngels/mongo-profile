@@ -3,6 +3,7 @@
 Set of functions and objects to retreive and parse the output of MongoDB's
 "db.system.profile.find()"
 """
+import datetime
 import pymongo
 import re
 _re_command_record = re.compile(
@@ -32,18 +33,28 @@ class mongoprofile(object):
 
     def __enter__(self):
         self._level = self.db.profiling_level()
-        self._records = self.db.system.profile.find().count()
-        if self._level == pymongo.ALL:
-            self._records += 2
+        self._last_ts = self._get_last_ts()
         self.db.set_profiling_level(pymongo.ALL)
         self.profile = Profile(self.db)
         return self.profile
 
+    def _get_last_ts(self):
+        records = list(self.db.system.profile.find().sort([('ts', pymongo.DESCENDING)]).limit(1))
+        if len(records) > 0:
+            return records[0]['ts']
+
     def __exit__(self, type, value, traceback):
-        stats = self.db.system.profile.find().skip(self._records)
+        filt = {}
+        if self._last_ts:
+            filt = {'ts': {'$gt': self._last_ts}}
+        if self._level == pymongo.ALL:
+            skip = 2
+        else:
+            skip = 0
+        stats = self.db.system.profile.find(filt).skip(skip)
         for record in stats:
-            self.profile.append(parse_record(record))
-        self.profile += list(stats)
+            r = parse_record(record)
+            self.profile.append(r)
         self.db.set_profiling_level(self._level)
 
 class Profile(list):
