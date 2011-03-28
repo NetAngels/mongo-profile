@@ -89,7 +89,8 @@ class MongoProfile(TestCase):
             list(self.db.people.find({'age': {'$gt': 20.0}}))
             self.db.people.find({'age': {'$gt': 20.0}}).count()
         record_info = [str(record) for record in profile]
-        self.assertEquals(self.expected_records, record_info)
+        for expected, received in zip(self.expected_records, record_info):
+            self.assertEquals(expected, received)
 
     def tearDown(self):
         self.db.drop_collection('people')
