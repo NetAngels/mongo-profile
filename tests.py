@@ -3,7 +3,7 @@
 We use db "test" and collection "people" for testing purposes
 """
 from unittest import TestCase
-from mongoprofile import parse_record, mongoprofile
+from mongoprofile import parse_record, MongoProfiler, DummyMongoProfiler
 
 
 class ParserTest(TestCase):
@@ -86,19 +86,28 @@ class MongoProfile(TestCase):
         self.db = Connection().test
 
     def testMongoProfile(self):
-        with mongoprofile(self.db) as profile:
-            profile.mark('insert')
-            self.db.people.insert(dict(name='John', age=20))
-            self.db.people.insert(dict(name='Mary', age=30))
-            profile.mark('modification')
-            self.db.people.update({'name': 'John'}, {'age': 21})
-            self.db.people.remove({'name': 'Mary'})
-            profile.mark('search')
-            list(self.db.people.find({'age': {'$gt': 20.0}}))
-            self.db.people.find({'age': {'$gt': 20.0}}).count()
-        record_info = [str(record) for record in profile]
+        profiler = MongoProfiler(self.db)
+        self._doQueries(profiler)
+        record_info = [str(record) for record in profiler.get_records()]
         for expected, received in zip(self.expected_records, record_info):
             self.assertEquals(expected, received)
+
+    def testDummyMongoProfile(self):
+        profiler = DummyMongoProfiler(self.db)
+        self._doQueries(profiler)
+        self.assertEquals(profiler.get_records(), [])
+
+    def _doQueries(self, profiler):
+        with profiler:
+            profiler.mark('insert')
+            self.db.people.insert(dict(name='John', age=20))
+            self.db.people.insert(dict(name='Mary', age=30))
+            profiler.mark('modification')
+            self.db.people.update({'name': 'John'}, {'age': 21})
+            self.db.people.remove({'name': 'Mary'})
+            profiler.mark('search')
+            list(self.db.people.find({'age': {'$gt': 20.0}}))
+            self.db.people.find({'age': {'$gt': 20.0}}).count()
 
     def tearDown(self):
         self.db.drop_collection('people')

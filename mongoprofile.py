@@ -29,28 +29,28 @@ _re_update_record = re.compile(
 _re_remove_record = re.compile(
     ur'remove (?P<db>[^.]+)\.(?P<collection>[^ ]+)  query: (?P<query>{.*})(?P<options>.*)'
 )
-class mongoprofile(object):
+class MongoProfiler(object):
 
     def __init__(self, db):
         self.db = db
+        self.records = []
 
     def __enter__(self):
-        self._level = self.db.profiling_level()
-        self._last_ts = self._get_last_ts()
+        self.prev_level = self.db.profiling_level()
+        self.timestamp_threshold = self.get_timestamp_threshold()
         self.db.set_profiling_level(pymongo.ALL)
-        self.profile = Profile(self.db)
-        return self.profile
+        return self
 
-    def _get_last_ts(self):
-        records = list(self.db.system.profile.find().sort([('ts', pymongo.DESCENDING)]).limit(1))
-        if len(records) > 0:
-            return records[0]['ts']
+    def get_timestamp_threshold(self):
+        prev_records = list(self.db.system.profile.find().sort([('ts', pymongo.DESCENDING)]).limit(1))
+        if len(prev_records) > 0:
+            return prev_records[0]['ts']
 
     def __exit__(self, type, value, traceback):
         filt = {}
-        if self._last_ts:
-            filt = {'ts': {'$gt': self._last_ts}}
-        if self._level == pymongo.ALL:
+        if self.timestamp_threshold:
+            filt = {'ts': {'$gt': self.timestamp_threshold}}
+        if self.prev_level == pymongo.ALL:
             skip = 2
         else:
             skip = 0
@@ -61,8 +61,8 @@ class mongoprofile(object):
             self._setup_ts_diff(r, prev_ts)
             if r.get('ts'):
                 prev_ts = r['ts']
-            self.profile.append(r)
-        self.db.set_profiling_level(self._level)
+            self.records.append(r)
+        self.db.set_profiling_level(self.prev_level)
 
     def _setup_ts_diff(self, record, prev_ts):
         new_ts = record.get('ts')
@@ -70,28 +70,25 @@ class mongoprofile(object):
             diff = new_ts - prev_ts
             record['ts_diff'] = diff.seconds + float(diff.microseconds / 1e6)
 
-class Profile(list):
-
-    def __init__(self, db):
-        list.__init__(self)
-        self.db = db
+    def get_records(self):
+        return self.records
 
     def mark(self, text):
         """ set the marker """
         list(self.db.phony_mongoprofile_marker.find({'text': text}))
         return
 
-class dummymongoprofile(object):
+class DummyMongoProfiler(list):
     def __init__(self, db):
         pass
     def __enter__(self):
-        return DummyProfile()
+        return self
     def __exit__(self, type, value, traceback):
         pass
-
-class DummyProfile(list):
     def mark(self, text):
         pass
+    def get_records(self):
+        return []
 
 def parse_record(record_source):
     record_map = [

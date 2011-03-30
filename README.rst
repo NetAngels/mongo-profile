@@ -8,10 +8,10 @@ To get more information about MongoDB profiling, see
 http://www.mongodb.org/display/DOCS/Database+Profiler
 
 
-mongoprofile.mongoprofile
+mongoprofile.MongoProfiler
 --------------------------
 
-Class `mongoprofile` is a "with"-wrapper around any set of MongoDB queries.
+Class `MongoProfiler` is a "with"-wrapper around any set of MongoDB queries.
 Typical usecase contains three steps:
 
 **Step1. Open connection**::
@@ -21,7 +21,8 @@ Typical usecase contains three steps:
 
 **Step 2. Execute and profile queries**::
 
-    >>> with mongoprofile(db) as profile:
+    >>> profiler = MongoProfiler(db)
+    >>> with profiler:
     ...     db.people.insert(dict(name='John', age=20))
     ...     db.people.insert(dict(name='Mary', age=30))
     ...     db.people.update({'name': 'John'}, {'age': 21})
@@ -36,7 +37,7 @@ subclasses, containing all profile information, including parsed "info". Every
 subclass has redefined ``__str__`` method returning the convenient presentation
 of request. See the example below to get the point::
 
-    >>> for record in profile:
+    >>> for record in profiler.get_records():
     ...    print str(record)
 
     test> db.people.insert({...})
@@ -54,29 +55,25 @@ A few more facts about record objects worth to be known:
   to get a bunch of ordered information using calls such as
   ``record['millis']``, ``record['ts']``, etc.
 
+Markers
+````````
 
-mongoprofile.Profile
----------------------
-
-When your code runs ``with mongoprofile(db) as profile:``, new
-``mongoprofile.Profile`` instance is created.
-
-The ``Profile`` class itself is a subclass of list, so you can handle ``profile``
-variable appropriately. Moreover, there is an additional
-``.mark(text)`` method. When ``mark`` is invoked, mongodb client do the fake
-query to phony collection just to record data in log. After the job has ended,
-these markers will be available as `'==== text ===='` records.
+The ``MongoProfiler`` class has ``.mark(text)`` method. When ``mark`` is
+invoked, mongodb client do the fake query to phony collection just to record
+data in log. After the job has ended, these markers will be available as 
+`'==== text ===='` records.
 
 Having changed previous example, we get something like this.
 
 Commands::
 
 
-    >>> with mongoprofile(db) as profile:
-    ...     profile.mark('insert')
+    >>> profiler = MongoProfiler(db)
+    >>> with profiler:
+    ...     profiler.mark('insert')
     ...     db.people.insert(dict(name='John', age=20))
     ...     db.people.insert(dict(name='Mary', age=30))
-    ...     profile.mark('search')
+    ...     profiler.mark('search')
     ...     list(db.people.find({'age': {'$gt': 20.0}}))
     ...     db.people.find({'age': {'$gt': 20.0}}).count()
 
@@ -90,6 +87,23 @@ Will lead to the output::
     test> db.people.find({ $query: { age: { $gt: 20.0 } } })
     test> db.runCommand({ count: "people", query: { age: { $gt: 20.0 } }, fields: null })
 
+DummyMongoProfiler
+-------------------
+
+It is probable that depending on some circumstances, you want or don't want to
+spend extra resources on your query profiling. Stub ``DummyMongoProfiler``
+class mocking ``MongoProfiler`` interface can be used for that purpose. Below
+is the usage sample with `Django-nonrel`_ in mind::
+
+    >>> from django.conf import settings
+    >>> Profiler = settings.DEBUG and MongoProfiler or DummyMongoProfiler
+    >>> profiler = Profiler(db)
+    >>> with profiler:
+    ...     ModelClass.objects.filter(...)
+    ...
+
+.. _Django-nonrel: http://www.allbuttonspressed.com/projects/django-nonrel
+
 Miscellaneous remarks
 ---------------------
 
@@ -101,5 +115,5 @@ size. The following set of commands creates capped collection of 100Mb::
     > db.system.profile.drop()
     > db.createCollection("system.profile", {capped:true, size:100*1e6})
 
-Command ``db.system.profile.stats()`` get the information about the current
-state of collection.
+Command ``db.system.profile.stats()`` shows you the current state of
+collection.
