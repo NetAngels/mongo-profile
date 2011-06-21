@@ -3,19 +3,25 @@
 # See http://www.mongodb.org/display/DOCS/Database+Profiler
 from distutils.core import setup
 
-import sys
+import os, sys
 reload(sys).setdefaultencoding("UTF-8")
+
+def read(fname):
+    try:
+        return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    except:
+        return ''
 
 setup(
     name='mongo-profile',
-    version='0.4',
+    version='0.4.1',
     author='NetAngels',
     author_email='info@netangels.ru',
     py_modules=['mongoprofile',],
     url='http://github.com/NetAngels/mongo-profile',
     license = 'BSD License',
     description = u'MongoDB profile helper',
-    long_description = open('README.rst').read().decode('utf-8'),
+    long_description = read('README.rst'),
     classifiers=(
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
